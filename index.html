@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鋼材の重量・強度簡易計算ツール（入力制限版）</title>
+    <title>鋼材の重量・強度計算ツール（連動完全修正版）</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -64,7 +64,6 @@
             border-color: #3498db;
             outline: none;
         }
-        /* 編集不可（readonly）の入力欄のスタイル */
         input[readonly] {
             background-color: #e9ecef;
             color: #495057;
@@ -119,6 +118,65 @@
         .shape-inputs.active {
             display: grid;
         }
+        .add-btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .add-btn:hover {
+            background-color: #27ae60;
+        }
+        .total-box {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+        }
+        .item-list {
+            margin-top: 15px;
+            padding: 0;
+            list-style: none;
+        }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            font-size: 14px;
+            border: 1px solid #e1e8ed;
+        }
+        .del-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .del-btn:hover {
+            background: #c0392b;
+        }
+        .clear-btn {
+            background: #7f8c8d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            float: right;
+            margin-top: -5px;
+        }
     </style>
 </head>
 <body>
@@ -129,10 +187,10 @@
     <div class="section">
         <h2>1. 形状の選択</h2>
         <div class="shape-tabs">
-            <button class="tab-btn active" onclick="switchShape(this, 'plate')">平板・鋼板</button>
-            <button class="tab-btn" onclick="switchShape(this, 'angle')">Lアングル (等辺)</button>
-            <button class="tab-btn" onclick="switchShape(this, 'pipe')">丸パイプ</button>
-            <button class="tab-btn" onclick="switchShape(this, 'bar')">丸棒</button>
+            <button id="tab-plate" class="tab-btn active" onclick="switchShape('plate')">平板・鋼板</button>
+            <button id="tab-angle" class="tab-btn" onclick="switchShape('angle')">Lアングル (等辺)</button>
+            <button id="tab-pipe" class="tab-btn" onclick="switchShape('pipe')">丸パイプ</button>
+            <button id="tab-bar" class="tab-btn" onclick="switchShape('bar')">丸棒</button>
         </div>
     </div>
 
@@ -141,7 +199,7 @@
         <div class="input-group">
             <div class="input-box">
                 <label for="material">材料の種類</label>
-                <select id="material" onchange="updateDensityAndYoung(); calculate();">
+                <select id="material" onchange="updateDensityAndYoung();">
                     <option value="7.70,200000" selected>ステンレス (SUS430)</option>
                     <option value="7.85,206000">鉄・鋼材 (SS400等)</option>
                     <option value="7.93,193000">ステンレス (SUS304)</option>
@@ -183,22 +241,42 @@
     </div>
 
     <div class="section">
-        <h2>4. 重量計算結果</h2>
+        <h2>4. 単品重量の計算結果</h2>
         <div class="result-box" style="border-left-color: #2ecc71;">
             <div class="result-item">
                 <span>断面積:</span>
                 <span class="result-val" id="res-area">0.00 cm²</span>
             </div>
             <div class="result-item">
-                <span>総重量:</span>
+                <span>この部材の重量:</span>
                 <span class="result-val highlight" id="res-weight">0.000 kg</span>
             </div>
         </div>
+        <div class="input-group" style="margin-top: 15px; grid-template-columns: 2fr 1fr; align-items: end;">
+            <div class="input-box">
+                <label>数量（個数）</label>
+                <input type="number" id="add-count" value="1" min="1" oninput="calculate()">
+            </div>
+            <button class="add-btn" onclick="addToTotal()">合計計算に追加する ＋</button>
+        </div>
+    </div>
+
+    <div class="section" style="background: #fff8e7; padding: 20px; border-radius: 8px; border: 1px solid #ffe8b5;">
+        <h2>5. 組み合わせ合計重量（積算）
+            <button class="clear-btn" onclick="clearTotal()">すべてリセット</button>
+        </h2>
+        <div class="result-box total-box">
+            <div class="result-item">
+                <span>現在の組み合わせ総重量:</span>
+                <span class="result-val highlight" id="total-weight" style="font-size: 22px; color: #d35400;">0.000 kg</span>
+            </div>
+        </div>
+        <ul id="item-list" class="item-list"></ul>
     </div>
 
     <div class="section">
-        <h2>5. 簡易強度計算（両端支持・中央集中荷重）</h2>
-        <p style="font-size: 12px; color: #7f8c8d; margin-top: -10px;">※強度計算上の「支点間距離」には、上記で入力した「奥行D」または「全長L」の値が自動適用されます。</p>
+        <h2>6. 簡易強度計算（単品・両端支持・中央集中荷重）</h2>
+        <p style="font-size: 12px; color: #7f8c8d; margin-top: -10px;">※強度計算上の「支点間距離」には、選択中タブの「奥行D」または「全長L」の値が自動適用されます。</p>
         <div class="input-group">
             <div class="input-box">
                 <label for="load">中心にかける荷重 P (kgf)</label>
@@ -233,15 +311,25 @@
 
 <script>
 let currentShape = 'plate';
+let currentUnitWeight = 0; 
+let addedItems = [];       
 
-function switchShape(element, shape) {
+function switchShape(shape) {
     currentShape = shape;
     
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    element.classList.add('active');
+    document.getElementById('tab-plate').classList.remove('active');
+    document.getElementById('tab-angle').classList.remove('active');
+    document.getElementById('tab-pipe').classList.remove('active');
+    document.getElementById('tab-bar').classList.remove('active');
     
-    document.querySelectorAll('.shape-inputs').forEach(div => div.classList.remove('active'));
-    document.getElementById(`inputs-${shape}`).classList.add('active');
+    document.getElementById('tab-' + shape).classList.add('active');
+    
+    document.getElementById('inputs-plate').classList.remove('active');
+    document.getElementById('inputs-angle').classList.remove('active');
+    document.getElementById('inputs-pipe').classList.remove('active');
+    document.getElementById('inputs-bar').classList.remove('active');
+    
+    document.getElementById('inputs-' + shape).classList.add('active');
     
     calculate();
 }
@@ -252,6 +340,9 @@ function updateDensityAndYoung() {
     const values = materialSelect.value.split(',');
     document.getElementById('density').value = values[0];
     document.getElementById('young').value = values[1];
+    
+    // 材質変更時にもしっかり再計算を呼び出す
+    calculate();
 }
 
 function calculate() {
@@ -310,12 +401,12 @@ function calculate() {
         Z = (Math.PI / 32) * Math.pow(D, 3);
     }
 
-    // --- 結果の出力表示 ---
     const area_cm2 = area_mm2 / 100;
-    const weight = (area_mm2 * span_L * rho) / 1000000;
+    currentUnitWeight = (area_mm2 * span_L * rho) / 1000000;
 
+    // 画面の表示数値を直接書き換え（確実に反映）
     document.getElementById('res-area').innerText = area_cm2.toFixed(2) + " cm²";
-    document.getElementById('res-weight').innerText = weight.toFixed(3) + " kg";
+    document.getElementById('res-weight').innerText = currentUnitWeight.toFixed(3) + " kg";
 
     document.getElementById('res-i').innerText = I.toFixed(2) + " mm⁴";
     document.getElementById('res-z').innerText = Z.toFixed(2) + " mm³";
@@ -333,7 +424,81 @@ function calculate() {
     }
 }
 
-// 初期実行
+function addToTotal() {
+    const count = parseInt(document.getElementById('add-count').value) || 1;
+    if (currentUnitWeight <= 0) return;
+
+    let shapeLabel = "";
+    const materialSelect = document.getElementById('material');
+    const matName = materialSelect.options[materialSelect.selectedIndex].text.split(' ')[0];
+
+    if (currentShape === 'plate') {
+        const t = document.getElementById('plate-t').value;
+        const w = document.getElementById('plate-w').value;
+        const d = document.getElementById('plate-d').value;
+        shapeLabel = "平板 t" + t + "×W" + w + "×D" + d;
+    } else if (currentShape === 'angle') {
+        const B = document.getElementById('angle-b').value;
+        const t = document.getElementById('angle-t').value;
+        const l = document.getElementById('angle-l').value;
+        shapeLabel = "Lアングル B" + B + "×t" + t + "×L" + l;
+    } else if (currentShape === 'pipe') {
+        const D = document.getElementById('pipe-d').value;
+        const t = document.getElementById('pipe-t').value;
+        const l = document.getElementById('pipe-l').value;
+        shapeLabel = "丸パイプ 外径" + D + "×t" + t + "×L" + l;
+    } else if (currentShape === 'bar') {
+        const D = document.getElementById('bar-d').value;
+        const l = document.getElementById('bar-l').value;
+        shapeLabel = "丸棒 直径" + D + "×L" + l;
+    }
+
+    const totalItemWeight = currentUnitWeight * count;
+
+    addedItems.push({
+        name: shapeLabel + " [" + matName + "]",
+        weight: totalItemWeight,
+        count: count
+    });
+
+    document.getElementById('add-count').value = 1;
+    updateTotalDisplay();
+}
+
+function updateTotalDisplay() {
+    const listElement = document.getElementById('item-list');
+    listElement.innerHTML = ""; 
+
+    let totalSum = 0;
+
+    for (let i = 0; i < addedItems.length; i++) {
+        const item = addedItems[i];
+        totalSum += item.weight;
+
+        const li = document.createElement('li');
+        li.className = "item-row";
+        li.innerHTML = "<span><strong>" + item.name + "</strong> × " + item.count + "個</span>" +
+                     "<span>" + item.weight.toFixed(3) + " kg " +
+                     "<button class='del-btn' onclick='deleteItem(" + i + ")' style='margin-left:10px;'>削除</button></span>";
+        listElement.appendChild(li);
+    }
+
+    document.getElementById('total-weight').innerText = totalSum.toFixed(3) + " kg";
+}
+
+function deleteItem(index) {
+    addedItems.splice(index, 1);
+    updateTotalDisplay();
+}
+
+function clearTotal() {
+    if(confirm("積算合計をリセットしてよろしいですか？")) {
+        addedItems = [];
+        updateTotalDisplay();
+    }
+}
+
+// 初期起動時の計算実行
 calculate();
 </script>
 
