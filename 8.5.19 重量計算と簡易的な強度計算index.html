@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鋼材の重量・強度簡易計算ツール（入力制限版）</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        h2 {
+            font-size: 18px;
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+        .input-box {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #7f8c8d;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        input:focus, select:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        /* 編集不可（readonly）の入力欄のスタイル */
+        input[readonly] {
+            background-color: #e9ecef;
+            color: #495057;
+            border-color: #ced4da;
+            cursor: not-allowed;
+        }
+        .shape-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 5px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #4a5568;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #3498db;
+            color: white;
+        }
+        .result-box {
+            margin-top: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-left: 5px solid #3498db;
+            border-radius: 4px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .result-val {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .highlight {
+            color: #e74c3c;
+            font-size: 18px;
+        }
+        .shape-inputs {
+            display: none;
+        }
+        .shape-inputs.active {
+            display: grid;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>鋼材 重量・強度 簡易計算ツール</h1>
+
+    <div class="section">
+        <h2>1. 形状の選択</h2>
+        <div class="shape-tabs">
+            <button class="tab-btn active" onclick="switchShape(this, 'plate')">平板・鋼板</button>
+            <button class="tab-btn" onclick="switchShape(this, 'angle')">Lアングル (等辺)</button>
+            <button class="tab-btn" onclick="switchShape(this, 'pipe')">丸パイプ</button>
+            <button class="tab-btn" onclick="switchShape(this, 'bar')">丸棒</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>2. 材質の選択</h2>
+        <div class="input-group">
+            <div class="input-box">
+                <label for="material">材料の種類</label>
+                <select id="material" onchange="updateDensityAndYoung(); calculate();">
+                    <option value="7.70,200000" selected>ステンレス (SUS430)</option>
+                    <option value="7.85,206000">鉄・鋼材 (SS400等)</option>
+                    <option value="7.93,193000">ステンレス (SUS304)</option>
+                    <option value="2.70,70000">アルミニウム</option>
+                </select>
+            </div>
+            <div class="input-box">
+                <label for="density">密度 (g/cm³) ※自動連動</label>
+                <input type="number" id="density" value="7.70" readonly>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. 寸法の入力 (mm)</h2>
+        
+        <div id="inputs-plate" class="shape-inputs active" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="input-box"><label>板厚 t</label><input type="number" id="plate-t" value="3.0" step="0.1" oninput="calculate()"></div>
+            <div class="input-box"><label>幅 W</label><input type="number" id="plate-w" value="40" oninput="calculate()"></div>
+            <div class="input-box"><label>奥行 D (長さ)</label><input type="number" id="plate-d" value="800" oninput="calculate()"></div>
+        </div>
+
+        <div id="inputs-angle" class="shape-inputs" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="input-box"><label>辺の長さ B</label><input type="number" id="angle-b" value="40" oninput="calculate()"></div>
+            <div class="input-box"><label>厚み t</label><input type="number" id="angle-t" value="3.0" step="0.1" oninput="calculate()"></div>
+            <div class="input-box"><label>全長 L (長さ)</label><input type="number" id="angle-l" value="800" oninput="calculate()"></div>
+        </div>
+
+        <div id="inputs-pipe" class="shape-inputs" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="input-box"><label>外径 D</label><input type="number" id="pipe-d" value="40" oninput="calculate()"></div>
+            <div class="input-box"><label>肉厚 t</label><input type="number" id="pipe-t" value="3.0" step="0.1" oninput="calculate()"></div>
+            <div class="input-box"><label>全長 L (長さ)</label><input type="number" id="pipe-l" value="800" oninput="calculate()"></div>
+        </div>
+
+        <div id="inputs-bar" class="shape-inputs" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="input-box"><label>直径 D</label><input type="number" id="bar-d" value="40" oninput="calculate()"></div>
+            <div class="input-box"><label>全長 L (長さ)</label><input type="number" id="bar-l" value="800" oninput="calculate()"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>4. 重量計算結果</h2>
+        <div class="result-box" style="border-left-color: #2ecc71;">
+            <div class="result-item">
+                <span>断面積:</span>
+                <span class="result-val" id="res-area">0.00 cm²</span>
+            </div>
+            <div class="result-item">
+                <span>総重量:</span>
+                <span class="result-val highlight" id="res-weight">0.000 kg</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>5. 簡易強度計算（両端支持・中央集中荷重）</h2>
+        <p style="font-size: 12px; color: #7f8c8d; margin-top: -10px;">※強度計算上の「支点間距離」には、上記で入力した「奥行D」または「全長L」の値が自動適用されます。</p>
+        <div class="input-group">
+            <div class="input-box">
+                <label for="load">中心にかける荷重 P (kgf)</label>
+                <input type="number" id="load" value="10" oninput="calculate()">
+            </div>
+            <div class="input-box">
+                <label for="young">縦弾性係数 E (N/mm²) ※自動連動</label>
+                <input type="number" id="young" value="200000" readonly>
+            </div>
+        </div>
+
+        <div class="result-box">
+            <div class="result-item">
+                <span>断面二次モーメント (I):</span>
+                <span class="result-val" id="res-i">0.00 mm⁴</span>
+            </div>
+            <div class="result-item">
+                <span>断面係数 (Z):</span>
+                <span class="result-val" id="res-z">0.00 mm³</span>
+            </div>
+            <div class="result-item">
+                <span>最大曲げ応力 (σ):</span>
+                <span class="result-val" id="res-stress">0.00 N/mm²</span>
+            </div>
+            <div class="result-item">
+                <span>最大たわみ量 (δ):</span>
+                <span class="result-val highlight" id="res-deflection">0.00 mm</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentShape = 'plate';
+
+function switchShape(element, shape) {
+    currentShape = shape;
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    element.classList.add('active');
+    
+    document.querySelectorAll('.shape-inputs').forEach(div => div.classList.remove('active'));
+    document.getElementById(`inputs-${shape}`).classList.add('active');
+    
+    calculate();
+}
+
+function updateDensityAndYoung() {
+    const materialSelect = document.getElementById('material');
+    if (!materialSelect.value) return;
+    const values = materialSelect.value.split(',');
+    document.getElementById('density').value = values[0];
+    document.getElementById('young').value = values[1];
+}
+
+function calculate() {
+    const rho = parseFloat(document.getElementById('density').value) || 0;
+    const P_kg = parseFloat(document.getElementById('load').value) || 0;
+    const E = parseFloat(document.getElementById('young').value) || 0;
+
+    let area_mm2 = 0; 
+    let I = 0;        
+    let Z = 0;        
+    let span_L = 0;   
+
+    if (currentShape === 'plate') {
+        const t = parseFloat(document.getElementById('plate-t').value) || 0;
+        const w = parseFloat(document.getElementById('plate-w').value) || 0;
+        const d = parseFloat(document.getElementById('plate-d').value) || 0;
+        
+        span_L = d;
+        area_mm2 = w * t;
+        I = (w * Math.pow(t, 3)) / 12;
+        Z = (w * Math.pow(t, 2)) / 6;
+
+    } else if (currentShape === 'angle') {
+        const B = parseFloat(document.getElementById('angle-b').value) || 0;
+        const t = parseFloat(document.getElementById('angle-t').value) || 0;
+        const l = parseFloat(document.getElementById('angle-l').value) || 0;
+        
+        span_L = l;
+        area_mm2 = t * (2 * B - t);
+        if (area_mm2 > 0) {
+            const c = (B*B + B*t - t*t) / (2 * (2*B - t));
+            I = (t * Math.pow(B - c, 3) + B * Math.pow(c, 3) - (B - t) * Math.pow(c - t, 3)) / 3;
+            Z = (B - c) > 0 ? I / (B - c) : 0;
+        }
+
+    } else if (currentShape === 'pipe') {
+        const D = parseFloat(document.getElementById('pipe-d').value) || 0;
+        const t = parseFloat(document.getElementById('pipe-t').value) || 0;
+        const l = parseFloat(document.getElementById('pipe-l').value) || 0;
+        
+        span_L = l;
+        const d_inner = D - 2 * t; 
+        if (D > 0 && d_inner >= 0) {
+            area_mm2 = (Math.PI / 4) * (Math.pow(D, 2) - Math.pow(d_inner, 2));
+            I = (Math.PI / 64) * (Math.pow(D, 4) - Math.pow(d_inner, 4));
+            Z = (Math.PI / 32) * ((Math.pow(D, 4) - Math.pow(d_inner, 4)) / D);
+        }
+
+    } else if (currentShape === 'bar') {
+        const D = parseFloat(document.getElementById('bar-d').value) || 0;
+        const l = parseFloat(document.getElementById('bar-l').value) || 0;
+        
+        span_L = l;
+        area_mm2 = (Math.PI / 4) * Math.pow(D, 2);
+        I = (Math.PI / 64) * Math.pow(D, 4);
+        Z = (Math.PI / 32) * Math.pow(D, 3);
+    }
+
+    // --- 結果の出力表示 ---
+    const area_cm2 = area_mm2 / 100;
+    const weight = (area_mm2 * span_L * rho) / 1000000;
+
+    document.getElementById('res-area').innerText = area_cm2.toFixed(2) + " cm²";
+    document.getElementById('res-weight').innerText = weight.toFixed(3) + " kg";
+
+    document.getElementById('res-i').innerText = I.toFixed(2) + " mm⁴";
+    document.getElementById('res-z').innerText = Z.toFixed(2) + " mm³";
+
+    if (I > 0 && Z > 0 && span_L > 0 && E > 0) {
+        const P_n = P_kg * 9.80665; 
+        const stress = (P_n * span_L) / (4 * Z);
+        const deflection = (P_n * Math.pow(span_L, 3)) / (48 * E * I);
+
+        document.getElementById('res-stress').innerText = stress.toFixed(2) + " N/mm²";
+        document.getElementById('res-deflection').innerText = deflection.toFixed(2) + " mm";
+    } else {
+        document.getElementById('res-stress').innerText = "0.00 N/mm²";
+        document.getElementById('res-deflection').innerText = "0.00 mm";
+    }
+}
+
+// 初期実行
+calculate();
+</script>
+
+</body>
+</html>
